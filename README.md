@@ -1,169 +1,219 @@
-# Cowrie Honeypot Configuration Backup
-# Server: 192.168.1.19
-# Date: 2026-02-19
-# Description: Full configuration and logs backup
+# Cowrie Honeypot Configuration
+**Server:** 192.168.1.19  
+**Repository:** Public configuration with test credentials  
+**Last Updated:** 2026-02-23
 
-## 📁 File Structure
+## 🚀 Quick Start
+
+### Test Credentials
+- **Username:** `tester`
+- **Password:** `TestCowrie!23`
+- **Port:** 2222 (SSH honeypot)
+
+### Access Points
+- **Honeypot:** `ssh tester@192.168.1.19 -p 2222`
+- **Dashboard:** `http://192.168.1.19:3333` (if running)
+
+## 📁 Repository Structure
 
 ```
 192.168.1.19/
 ├── Configuration Files
 │   ├── cowrie.cfg                 # Main Cowrie configuration
 │   ├── cowrie.service             # Systemd service for Cowrie
-│   └── cowrie-dashboard.service   # Dashboard service
+│   ├── cowrie-dashboard.service   # Dashboard service
+│   └── userdb.txt               # User database with test credentials
 │
 ├── Dashboard Files
 │   ├── cowrie_dashboard_mobile.py # Mobile-optimized dashboard
 │   ├── geoip_service.py          # GeoIP lookup service
 │   ├── asn_service.py            # ASN/organization lookup
-│   └── templates/                 # HTML templates
+│   └── templates/               # HTML templates
 │       ├── index.html
 │       ├── index_geo.html
 │       ├── index_full.html
 │       └── index_mobile.html
 │
-├── Logs
-│   ├── logs/
-│   │   ├── cowrie.json           # JSON format logs
-│   │   └── cowrie.log            # Text format logs
-│   ├── cowrie_service.log        # Service logs
-│   ├── dashboard_service.log     # Dashboard service logs
-│   ├── cowrie_status.log         # Current service status
-│   ├── dashboard_status.log      # Dashboard status
-│   ├── cowrie_processes.log     # Running processes
-│   └── cowrie_ports.log          # Network ports
-│
-└── README.md                     # This file
+└── README.md                    # This file
 ```
 
 ## 🔧 Configuration Details
 
-### Cowrie Service Status
-- **Status:** Currently inactive (dead)
-- **Last Run:** 2026-02-19 15:35:36 UTC (14 seconds duration)
-- **Port:** 2222 (SSH honeypot)
-- **User:** cowrie
+### Authentication Setup
+- **Method:** UserDB (fixed credentials)
+- **Test Account:** `tester / TestCowrie!23`
+- **Fallback:** Default Cowrie credentials for attackers
 
-### Dashboard Service Status
-- **Status:** Active (running)
-- **PID:** 9496
-- **Memory:** 57.7MB
-- **Port:** 3333 (Web dashboard)
-- **Access:** http://192.168.1.19:3333
-
-## 📊 Key Configuration Settings
-
-### cowrie.cfg Highlights
-```
-listen_endpoints = tcp:2222:interface=0.0.0.0
-auth_class = AuthRandom
-auth_class_parameters = 100, 150, 100
-```
-
-### Service Configuration
+### Network Configuration
+- **Listen Port:** 2222 (SSH honeypot)
+- **Interface:** 0.0.0.0 (all interfaces)
 - **User:** cowrie
 - **Working Directory:** /home/cowrie/cowrie
-- **Virtual Environment:** cowrie-env
-- **Python Version:** 3.12.3
 
-## 🌍 GeoIP & ASN Integration
+### Service Management
+```bash
+# Start/stop Cowrie
+systemctl start cowrie
+systemctl stop cowrie
+systemctl status cowrie
 
-### GeoIP Database
-- **File:** GeoLite2-City.mmdb
-- **Version:** 20260217
-- **Provider:** MaxMind
+# Start/stop Dashboard
+systemctl start cowrie-dashboard
+systemctl stop cowrie-dashboard
+```
 
-### ASN Service Features
-- **Sources:** WHOIS, IPInfo.io, IP-API.com
-- **Caching:** Memory-based caching
-- **Rate Limiting:** 1s delay between requests
+## 📱 Dashboard Features
 
-## 📱 Mobile Dashboard Features
+### Real-time Monitoring
+- **Live Attack Feed:** Real-time connection attempts
+- **GeoIP Mapping:** World map with attack origins
+- **Statistics:** Success/failure rates, top IPs, passwords
+- **Mobile Optimized:** Touch-friendly interface
 
-### Responsive Design
-- **Framework:** Tailwind CSS
-- **WebSocket:** Socket.IO with Eventlet
-- **Charts:** Chart.js
+### Technology Stack
+- **Backend:** Flask + Socket.IO
+- **Frontend:** Tailwind CSS + Chart.js
 - **Maps:** Leaflet.js with heatmap
+- **Real-time:** WebSocket updates
 
-### Mobile Optimizations
-- **Touch-friendly controls**
-- **Responsive grid layout**
-- **Tab navigation**
-- **Performance optimizations**
+## 🛡️ Security Configuration
 
-## 🚨 Security Configuration
-
-### Authentication
-- **Method:** AuthRandom (100-150 attempts)
-- **Success Rate:** ~39%
-- **Password Database:** Default + captured combinations
+### Authentication Classes
+- **UserDB:** Fixed credentials for testing
+- **AuthRandom:** Random acceptance (commented out)
+- **Backend:** Shell emulation
 
 ### Network Security
-- **Listening Interface:** 0.0.0.0 (all interfaces)
-- **Authbind:** Enabled for port 2222
-- **Firewall:** Not configured (manual setup needed)
+- **Authbind:** Enabled for privileged ports
+- **Firewall:** Configure as needed
+- **Isolation:** Cowrie runs as unprivileged user
+
+## 📊 Statistics & Monitoring
+
+### Credential Capture
+The honeypot captures attacker credentials:
+- **Failed Logins:** All attempts are logged
+- **Successful Logins:** Grant access to fake environment
+- **Data Storage:** JSON format in logs/
+
+### Log Analysis
+```bash
+# View recent attacks
+tail -f /home/cowrie/cowrie/var/log/cowrie/cowrie.json
+
+# Extract credentials
+grep -E "(login.failed|login.success)" /home/cowrie/cowrie/var/log/cowrie/cowrie.json
+```
+
+## 🔍 Deployment Guide
+
+### Initial Setup
+1. **Clone Repository:**
+   ```bash
+   git clone https://github.com/hoanb1/cowrie-honeypot-192.168.1.19.git
+   cd cowrie-honeypot-192.168.1.19
+   ```
+
+2. **Copy Configuration:**
+   ```bash
+   sudo cp -r * /home/cowrie/cowrie/etc/
+   sudo chown -R cowrie:cowrie /home/cowrie/cowrie/etc/
+   ```
+
+3. **Start Services:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl start cowrie
+   sudo systemctl start cowrie-dashboard
+   ```
+
+### Testing Connection
+```bash
+# Test with provided credentials
+ssh tester@192.168.1.19 -p 2222
+# Password: TestCowrie!23
+
+# Test with common attacker credentials
+ssh root@192.168.1.19 -p 2222
+# Password: 123456, admin, root, etc.
+```
+
+## 🚨 Important Notes
+
+### Security Considerations
+- **Isolation:** Ensure Cowrie runs in isolated environment
+- **Monitoring:** Regularly review captured credentials
+- **Updates:** Keep Cowrie and dependencies updated
+- **Network:** Consider firewall rules to limit exposure
+
+### Data Privacy
+- **Logs:** May contain sensitive information
+- **Credentials:** Store and handle securely
+- **Compliance:** Follow local regulations for honeypot data
+
+## 🔄 Maintenance
+
+### Regular Tasks
+1. **Log Rotation:** Configure logrotate for large log files
+2. **GeoIP Updates:** Update MaxMind database monthly
+3. **Backup:** Regular configuration backups
+4. **Monitoring:** Check service status and resource usage
+
+### Troubleshooting
+```bash
+# Check service status
+systemctl status cowrie
+journalctl -u cowrie -f
+
+# Verify configuration
+/home/cowrie/cowrie/cowrie-env/bin/cowrie --check-config
+
+# Test authentication
+ssh -v tester@192.168.1.19 -p 2222
+```
 
 ## 📈 Performance Metrics
 
 ### Resource Usage
-- **Dashboard Memory:** 57.7MB
-- **CPU Usage:** 1.4s total
-- **Response Time:** <1s for dashboard
-- **Concurrent Connections:** Eventlet-based
+- **Memory:** ~50-100MB (depends on activity)
+- **CPU:** Low usage, spikes during attacks
+- **Storage:** Log growth depends on attack volume
+- **Network:** Minimal overhead
 
-### Log Statistics
-- **Total Connections:** 31+
-- **Failed Logins:** 23+
-- **Successful Logins:** 16+
-- **Unique IPs:** 7+
-- **Unique Countries:** Multiple
+### Scaling Considerations
+- **Multiple Instances:** Configure different ports
+- **Load Balancing:** Use HAProxy for distribution
+- **Database:** Consider MySQL/PostgreSQL for large deployments
 
-## 🔍 Troubleshooting Notes
+## 🤝 Contributing
 
-### Common Issues
-1. **Cowrie Service:** Currently stopped, needs restart
-2. **Socket.IO Warning:** Session context errors (non-critical)
-3. **Eventlet Patching:** Some warnings (functional)
+### Configuration Changes
+1. **Modify:** Edit configuration files locally
+2. **Test:** Verify changes don't break functionality
+3. **Commit:** Push changes with descriptive messages
+4. **Deploy:** Apply to production environment
 
-### Recovery Commands
-```bash
-# Restart Cowrie
-systemctl restart cowrie
+### Security Improvements
+- **Additional Authentication Methods:** LDAP, database backends
+- **Enhanced Logging:** Custom log formats and destinations
+- **Alerting:** Email/Slack notifications for attacks
+- **Integration:** SIEM systems, threat intelligence feeds
 
-# Check Dashboard
-systemctl status cowrie-dashboard
+## 📞 Support
 
-# View Logs
-journalctl -u cowrie -f
-journalctl -u cowrie-dashboard -f
-```
+### Documentation
+- **Cowrie Official:** https://cowrie.readthedocs.io/
+- **GitHub Repository:** https://github.com/cowrie/cowrie
+- **Community:** https://github.com/cowrie/cowrie/discussions
 
-## 📝 Deployment Summary
-
-### Installation Components
-1. ✅ Cowrie honeypot installed
-2. ✅ Python virtual environment
-3. ✅ GeoIP database configured
-4. ✅ ASN lookup service
-5. ✅ Mobile dashboard deployed
-6. ✅ Systemd services configured
-
-### Current Status
-- **Honeypot:** Stopped (needs restart)
-- **Dashboard:** Running and accessible
-- **Data Collection:** Logs available for analysis
-- **Configuration:** All files backed up locally
-
-## 🔄 Next Steps
-
-1. **Restart Cowrie:** `systemctl restart cowrie`
-2. **Configure Firewall:** Block malicious IPs
-3. **Monitor Dashboard:** Check real-time activity
-4. **Analyze Logs:** Review attack patterns
-5. **Update GeoIP:** Refresh database monthly
+### Issues & Questions
+- **Repository Issues:** Use GitHub Issues
+- **Security Concerns:** Report privately
+- **Configuration Help:** Check documentation first
 
 ---
-**Backup completed:** 2026-02-19 23:30 UTC
-**Total files:** 15+ configuration and log files
-**Total size:** ~500KB compressed
+
+**Repository Status:** ✅ Active  
+**Last Configuration Update:** 2026-02-23  
+**Test Credentials:** Available for validation  
+**Dashboard:** Mobile-optimized real-time monitoring
