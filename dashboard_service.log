@@ -1,0 +1,50 @@
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 621, in _trigger_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return handler(*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 291, in _handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self._handle_event(handler, message, real_ns, sid,
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 815, in _handle_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ctx.session = session_obj
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]: AttributeError: property 'session' of 'RequestContext' object has no setter
+Feb 19 16:28:41 Cowrie18vp python3[9496]: message handler error
+Feb 19 16:28:41 Cowrie18vp python3[9496]: Traceback (most recent call last):
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/engineio/server.py", line 451, in run_handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self.handlers[event](*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 656, in _handle_eio_message
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     self._handle_connect(eio_sid, pkt.namespace, pkt.data)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 539, in _handle_connect
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     success = self._trigger_event(
+Feb 19 16:28:41 Cowrie18vp python3[9496]:               ^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 621, in _trigger_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return handler(*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 291, in _handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self._handle_event(handler, message, real_ns, sid,
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 815, in _handle_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ctx.session = session_obj
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]: AttributeError: property 'session' of 'RequestContext' object has no setter
+Feb 19 16:28:41 Cowrie18vp python3[9496]: ERROR:engineio.server:message handler error
+Feb 19 16:28:41 Cowrie18vp python3[9496]: Traceback (most recent call last):
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/engineio/server.py", line 451, in run_handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self.handlers[event](*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 656, in _handle_eio_message
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     self._handle_connect(eio_sid, pkt.namespace, pkt.data)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 539, in _handle_connect
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     success = self._trigger_event(
+Feb 19 16:28:41 Cowrie18vp python3[9496]:               ^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 621, in _trigger_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return handler(*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 291, in _handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self._handle_event(handler, message, real_ns, sid,
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 815, in _handle_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ctx.session = session_obj
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]: AttributeError: property 'session' of 'RequestContext' object has no setter

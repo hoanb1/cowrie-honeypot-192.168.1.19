@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cowrie Honeypot Mobile Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        /* Custom animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s infinite;
+        }
+        
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        /* Custom scrollbar for mobile */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Map container */
+        #world-map {
+            height: 400px;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        /* Chart containers */
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        /* Mobile-specific adjustments */
+        @media (max-width: 640px) {
+            .chart-container {
+                height: 200px;
+            }
+            
+            #world-map {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body class="h-full bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+    <div id="app" class="h-full flex flex-col">
+        <!-- Header -->
+        <header class="bg-white/10 backdrop-blur-md border-b border-white/20">
+            <div class="px-4 py-3 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse-slow"></div>
+                        <h1 class="text-xl sm:text-2xl font-bold text-white">🛡️ Cowrie Dashboard</h1>
+                    </div>
+                    <button onclick="refreshData()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+                        🔄 Refresh
+                    </button>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-300 border border-green-500/30">
+                        🌍 Live GeoIP
+                    </span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        🏢 ASN Tracking
+                    </span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                        📱 Mobile Ready
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4 mb-6">
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-blue-300" id="total-connections">0</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Total Connections</div>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-red-400" id="failed-logins">0</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Failed Logins</div>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-green-400" id="successful-logins">0</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Success Logins</div>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-purple-400" id="unique-countries">0</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Countries</div>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-orange-400" id="unique-organizations">0</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Organizations</div>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-lg p-3 sm:p-4 border border-white/20">
+                    <div class="text-2xl sm:text-3xl font-bold text-yellow-400" id="success-rate">0%</div>
+                    <div class="text-xs sm:text-sm text-gray-300 mt-1">Success Rate</div>
+                </div>
+            </div>
+
+            <!-- Mobile Tabs -->
+            <div class="bg-white/10 backdrop-blur-md rounded-lg border border-white/20 mb-6">
+                <div class="flex flex-wrap border-b border-white/20">
+                    <button onclick="switchTab('overview')" class="tab-btn px-4 py-3 text-sm font-medium text-white border-b-2 border-blue-500 bg-blue-500/20" data-tab="overview">
+                        📊 Overview
+                    </button>
+                    <button onclick="switchTab('map')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent" data-tab="map">
+                        🗺️ Map
+                    </button>
+                    <button onclick="switchTab('analytics')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent" data-tab="analytics">
+                        📈 Analytics
+                    </button>
+                    <button onclick="switchTab('alerts')" class="tab-btn px-4 py-3 text-sm font-medium text-gray-300 hover:text-white border-b-2 border-transparent" data-tab="alerts">
+                        🚨 Alerts
+                    </button>
+                </div>
+                
+                <!-- Tab Contents -->
+                <div class="p-4">
+                    <!-- Overview Tab -->
+                    <div id="overview-tab" class="tab-content">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Real-time Chart -->
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">📈 Real-time Attacks</h3>
+                                <div class="chart-container">
+                                    <canvas id="attackChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- Recent Activity -->
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🕐 Recent Activity</h3>
+                                <div id="recent-activity" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar text-sm">
+                                    <!-- Activity items will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Stats -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🎯 Top IPs</h3>
+                                <div id="top-ips" class="space-y-2">
+                                    <!-- Top IPs will be added here -->
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🔑 Top Passwords</h3>
+                                <div id="top-passwords" class="space-y-2">
+                                    <!-- Top passwords will be added here -->
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">👥 Top Users</h3>
+                                <div id="top-users" class="space-y-2">
+                                    <!-- Top users will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Map Tab -->
+                    <div id="map-tab" class="tab-content hidden">
+                        <div class="mb-4">
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="toggleMapView('markers')" class="map-btn bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm transition-colors">
+                                    📍 Markers
+                                </button>
+                                <button onclick="toggleMapView('heat')" class="map-btn bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm transition-colors">
+                                    🔥 Heatmap
+                                </button>
+                                <button onclick="toggleMapView('both')" class="map-btn bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm transition-colors">
+                                    🔄 Both
+                                </button>
+                                <button onclick="clearMap()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm transition-colors">
+                                    🗑️ Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div id="world-map"></div>
+                    </div>
+                    
+                    <!-- Analytics Tab -->
+                    <div id="analytics-tab" class="tab-content hidden">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Country Chart -->
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🌍 Countries</h3>
+                                <div class="chart-container">
+                                    <canvas id="countryChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- Organization Chart -->
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🏢 Organizations</h3>
+                                <div class="chart-container">
+                                    <canvas id="orgChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Detailed Lists -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🌏 Top Countries</h3>
+                                <div id="top-countries" class="space-y-2">
+                                    <!-- Top countries will be added here -->
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white/5 rounded-lg p-4">
+                                <h3 class="text-lg font-semibold text-white mb-3">🏢 Top Organizations</h3>
+                                <div id="top-organizations" class="space-y-2">
+                                    <!-- Top organizations will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alerts Tab -->
+                    <div id="alerts-tab" class="tab-content hidden">
+                        <div id="alerts" class="space-y-3">
+                            <!-- Alerts will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        
+        // Map variables
+        let map;
+        let markersLayer;
+        let heatLayer;
+        let currentView = 'markers';
+        
+        // Chart variables
+        let attackChart, countryChart, orgChart;
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Update button states
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'bg-blue-500/20', 'text-white');
+                btn.classList.add('border-transparent', 'text-gray-300');
+            });
+            
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            activeBtn.classList.remove('border-transparent', 'text-gray-300');
+            activeBtn.classList.add('border-blue-500', 'bg-blue-500/20', 'text-white');
+            
+            // Update content visibility
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            
+            // Initialize map when map tab is opened
+            if (tabName === 'map' && !map) {
+                setTimeout(initMap, 100);
+            }
+        }
+        
+        // Initialize map
+        function initMap() {
+            if (!document.getElementById('world-map')) return;
+            
+            map = L.map('world-map').setView([20, 0], 2);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            markersLayer = L.layerGroup().addTo(map);
+            heatLayer = L.layerGroup().addTo(map);
+            
+            // Load initial map data
+            refreshMapData();
+        }
+        
+        // Initialize charts
+        function initCharts() {
+            // Attack Chart
+            const attackCtx = document.getElementById('attackChart');
+            if (attackCtx) {
+                attackChart = new Chart(attackCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Connections',
+                            data: [],
+                            borderColor: '#60A5FA',
+                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                            tension: 0.4
+                        }, {
+                            label: 'Failed',
+                            data: [],
+                            borderColor: '#F87171',
+                            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                            tension: 0.4
+                        }, {
+                            label: 'Success',
+                            data: [],
+                            borderColor: '#34D399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#fff' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: { color: '#fff' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Country Chart
+            const countryCtx = document.getElementById('countryChart');
+            if (countryCtx) {
+                countryChart = new Chart(countryCtx.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            data: [],
+                            backgroundColor: [
+                                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                                '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff' },
+                                position: 'right'
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Organization Chart
+            const orgCtx = document.getElementById('orgChart');
+            if (orgCtx) {
+                orgChart = new Chart(orgCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Attacks',
+                            data: [],
+                            backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                            borderColor: 'rgba(168, 85, 247, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#fff' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            y: {
+                                ticks: { color: '#fff' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Socket.IO event handlers
+        socket.on('connect', function() {
+            console.log('Connected to server');
+        });
+        
+        socket.on('stats_update', function(data) {
+            updateDashboard(data);
+        });
+        
+        socket.on('alert', function(alert) {
+            addAlert(alert);
+        });
+        
+        socket.on('log_entry', function(entry) {
+            addLogEntry(entry);
+            if (entry.geo_location && map) {
+                addMapMarker(entry);
+            }
+        });
+        
+        // Update dashboard function
+        function updateDashboard(data) {
+            // Update statistics
+            document.getElementById('total-connections').textContent = data.total_connections || 0;
+            document.getElementById('failed-logins').textContent = data.failed_logins || 0;
+            document.getElementById('successful-logins').textContent = data.successful_logins || 0;
+            document.getElementById('unique-countries').textContent = Object.keys(data.top_countries || {}).length;
+            document.getElementById('unique-organizations').textContent = Object.keys(data.top_organizations || {}).length;
+            document.getElementById('success-rate').textContent = (data.success_rate || 0).toFixed(1) + '%';
+            
+            // Update lists
+            updateList('top-ips', data.top_ips, 'ip');
+            updateList('top-passwords', data.top_passwords, 'password');
+            updateList('top-users', data.top_users, 'user');
+            updateList('top-countries', data.top_countries, 'country');
+            updateList('top-organizations', data.top_organizations, 'organization');
+            
+            // Update charts
+            updateCharts(data);
+        }
+        
+        // Update list function
+        function updateList(elementId, data, type) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            element.innerHTML = '';
+            if (data) {
+                Object.entries(data).slice(0, 5).forEach(([key, count]) => {
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center bg-white/5 rounded p-2';
+                    
+                    let keyClass = 'text-gray-300';
+                    if (type === 'ip') keyClass = 'text-red-400 font-mono text-sm';
+                    else if (type === 'country') keyClass = 'text-green-400';
+                    else if (type === 'organization') keyClass = 'text-purple-400';
+                    else if (type === 'user') keyClass = 'text-yellow-400';
+                    
+                    item.innerHTML = `
+                        <span class="${keyClass} truncate">${key}</span>
+                        <span class="bg-blue-600/20 text-blue-300 px-2 py-1 rounded text-xs">${count}</span>
+                    `;
+                    element.appendChild(item);
+                });
+            }
+        }
+        
+        // Update charts function
+        function updateCharts(data) {
+            // Update attack chart
+            if (attackChart) {
+                const now = new Date();
+                const timeLabel = now.toLocaleTimeString();
+                
+                if (attackChart.data.labels.length > 20) {
+                    attackChart.data.labels.shift();
+                    attackChart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+                
+                attackChart.data.labels.push(timeLabel);
+                attackChart.data.datasets[0].data.push(data.total_connections || 0);
+                attackChart.data.datasets[1].data.push(data.failed_logins || 0);
+                attackChart.data.datasets[2].data.push(data.successful_logins || 0);
+                
+                attackChart.update();
+            }
+            
+            // Update country chart
+            if (countryChart && data.top_countries) {
+                const sortedCountries = Object.entries(data.top_countries)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 8);
+                
+                countryChart.data.labels = sortedCountries.map(([country]) => country);
+                countryChart.data.datasets[0].data = sortedCountries.map(([, count]) => count);
+                countryChart.update();
+            }
+            
+            // Update organization chart
+            if (orgChart && data.top_organizations) {
+                const sortedOrgs = Object.entries(data.top_organizations)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 8);
+                
+                orgChart.data.labels = sortedOrgs.map(([org]) => org.length > 15 ? org.substring(0, 15) + '...' : org);
+                orgChart.data.datasets[0].data = sortedOrgs.map(([, count]) => count);
+                orgChart.update();
+            }
+        }
+        
+        // Add map marker
+        function addMapMarker(entry) {
+            if (!entry.geo_location || !entry.geo_location.latitude || !entry.geo_location.longitude) {
+                return;
+            }
+            
+            const location = entry.geo_location;
+            const organization = entry.asn_info ? entry.asn_info.organization : 'Unknown';
+            
+            if (currentView === 'markers' || currentView === 'both') {
+                const marker = L.marker([location.latitude, location.longitude]);
+                marker.bindPopup(`
+                    <div class="text-sm">
+                        <strong>${location.country}</strong><br>
+                        IP: ${entry.src_ip}<br>
+                        City: ${location.city || 'Unknown'}<br>
+                        Organization: ${organization}<br>
+                        User: ${entry.username || 'N/A'}<br>
+                        Event: ${entry.eventid}<br>
+                        Time: ${new Date(entry.timestamp).toLocaleString()}
+                    </div>
+                `);
+                markersLayer.addLayer(marker);
+            }
+            
+            if (currentView === 'heat' || currentView === 'both') {
+                const heatMarker = L.circleMarker([location.latitude, location.longitude], {
+                    radius: 5,
+                    fillColor: '#ff7800',
+                    color: '#000',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                heatLayer.addLayer(heatMarker);
+            }
+        }
+        
+        // Map control functions
+        function toggleMapView(view) {
+            currentView = view;
+            
+            // Update button states
+            document.querySelectorAll('.map-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+            });
+            event.target.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+            event.target.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            
+            clearMap();
+            refreshMapData();
+        }
+        
+        function clearMap() {
+            if (markersLayer) markersLayer.clearLayers();
+            if (heatLayer) heatLayer.clearLayers();
+        }
+        
+        function refreshMapData() {
+            if (!map) return;
+            
+            fetch('/api/map')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.markers) {
+                        data.markers.forEach(marker => {
+                            if (currentView === 'markers' || currentView === 'both') {
+                                const mapMarker = L.marker([marker.lat, marker.lng]);
+                                mapMarker.bindPopup(`
+                                    <div class="text-sm">
+                                        <strong>${marker.country}</strong><br>
+                                        IP: ${marker.ip}<br>
+                                        City: ${marker.city || 'Unknown'}<br>
+                                        Organization: ${marker.organization || 'Unknown'}<br>
+                                        User: ${marker.username || 'N/A'}<br>
+                                        Event: ${marker.event}<br>
+                                        Time: ${new Date(marker.timestamp).toLocaleString()}
+                                    </div>
+                                `);
+                                markersLayer.addLayer(mapMarker);
+                            }
+                            
+                            if (currentView === 'heat' || currentView === 'both') {
+                                const heatMarker = L.circleMarker([marker.lat, marker.lng], {
+                                    radius: 5,
+                                    fillColor: '#ff7800',
+                                    color: '#000',
+                                    weight: 1,
+                                    opacity: 1,
+                                    fillOpacity: 0.8
+                                });
+                                heatLayer.addLayer(heatMarker);
+                            }
+                        });
+                    }
+                })
+                .catch(error => console.error('Error refreshing map data:', error));
+        }
+        
+        // Add alert function
+        function addAlert(alert) {
+            const alertsContainer = document.getElementById('alerts');
+            if (!alertsContainer) return;
+            
+            const alertElement = document.createElement('div');
+            
+            let alertClass = 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300';
+            if (alert.level === 'HIGH') alertClass = 'bg-red-500/20 border-red-500/50 text-red-300';
+            else if (alert.level === 'MEDIUM') alertClass = 'bg-orange-500/20 border-orange-500/50 text-orange-300';
+            
+            alertElement.className = `p-3 rounded-lg border ${alertClass} animate-slide-in`;
+            alertElement.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <strong>${alert.level}:</strong> ${alert.message}
+                        <div class="text-xs mt-1 opacity-75">
+                            ${alert.organization || 'Unknown'} - ${alert.country || 'Unknown'} - ${new Date(alert.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            alertsContainer.insertBefore(alertElement, alertsContainer.firstChild);
+            
+            // Keep only last 10 alerts
+            while (alertsContainer.children.length > 10) {
+                alertsContainer.removeChild(alertsContainer.lastChild);
+            }
+        }
+        
+        // Add log entry function
+        function addLogEntry(entry) {
+            const activityContainer = document.getElementById('recent-activity');
+            if (!activityContainer) return;
+            
+            const logElement = document.createElement('div');
+            const country = entry.geo_location ? entry.geo_location.country : 'Unknown';
+            const organization = entry.asn_info ? entry.asn_info.organization : 'Unknown';
+            
+            logElement.className = 'bg-white/5 rounded p-2 text-xs animate-slide-in';
+            logElement.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">${new Date(entry.timestamp).toLocaleTimeString()}</span>
+                    <span class="text-blue-400">${entry.eventid}</span>
+                </div>
+                <div class="mt-1">
+                    <span class="text-red-400 font-mono">${entry.src_ip}</span> 
+                    <span class="text-gray-300">(${country})</span>
+                    <span class="text-purple-400">- ${organization}</span>
+                </div>
+                ${entry.username ? `<div class="text-yellow-400">User: ${entry.username}</div>` : ''}
+            `;
+            
+            activityContainer.insertBefore(logElement, activityContainer.firstChild);
+            
+            // Keep only last 10 entries
+            while (activityContainer.children.length > 10) {
+                activityContainer.removeChild(activityContainer.lastChild);
+            }
+        }
+        
+        // Refresh data function
+        function refreshData() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => updateDashboard(data))
+                .catch(error => console.error('Error refreshing data:', error));
+            
+            refreshMapData();
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            refreshData();
+            
+            // Auto-refresh every 5 seconds
+            setInterval(refreshData, 5000);
+        });
+    </script>
+</body>
+</html>

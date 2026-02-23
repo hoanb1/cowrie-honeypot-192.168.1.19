@@ -1,0 +1,20 @@
+* cowrie-dashboard.service - Cowrie Real-time Dashboard
+     Loaded: loaded (/etc/systemd/system/cowrie-dashboard.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-02-19 16:28:19 UTC; 1min 48s ago
+   Main PID: 9496 (python3)
+      Tasks: 1 (limit: 38371)
+     Memory: 57.7M (peak: 58.6M)
+        CPU: 1.458s
+     CGroup: /system.slice/cowrie-dashboard.service
+             `-9496 /home/cowrie/cowrie/cowrie-env/bin/python3 /home/cowrie/cowrie/cowrie_dashboard_mobile.py
+
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/socketio/server.py", line 621, in _trigger_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return handler(*args)
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 291, in _handler
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     return self._handle_event(handler, message, real_ns, sid,
+Feb 19 16:28:41 Cowrie18vp python3[9496]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]:   File "/home/cowrie/cowrie/cowrie-env/lib/python3.12/site-packages/flask_socketio/__init__.py", line 815, in _handle_event
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ctx.session = session_obj
+Feb 19 16:28:41 Cowrie18vp python3[9496]:     ^^^^^^^^^^^
+Feb 19 16:28:41 Cowrie18vp python3[9496]: AttributeError: property 'session' of 'RequestContext' object has no setter
