@@ -1,6 +1,0 @@
-cowrie      5982  0.0  1.2  94888 75016 ?        S    15:47   0:02 /home/cowrie/cowrie/cowrie-env/bin/python3 /home/cowrie/cowrie/cowrie-env/bin/twistd --umask=0022 --pidfile /home/cowrie/cowrie/var/run/cowrie.pid --logger cowrie.python.logfile.logger cowrie
-root        6376  0.0  0.0   2736  1604 pts/3    S+   15:52   0:00 tail -f /home/cowrie/cowrie/var/log/cowrie/cowrie.json
-cowrie      9496  0.0  1.2 145800 79632 ?        Ss   16:28   0:01 /home/cowrie/cowrie/cowrie-env/bin/python3 /home/cowrie/cowrie/cowrie_dashboard_mobile.py
-root       10290  0.0  0.0   4332  3192 ?        Ss   16:30   0:00 bash -c cat > /tmp/cowrie_processes.log
-root       10291  0.0  0.0   4332  3188 ?        Ss   16:30   0:00 bash -c ps aux | grep cowrie
-root       10294  0.0  0.0   3536  1816 ?        S    16:30   0:00 grep cowrie

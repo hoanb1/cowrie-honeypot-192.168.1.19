@@ -1,1 +1,33 @@
+# Logs
+logs/
+*.log
+*.log.*
 
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment
+.env
+.venv
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cowrie specific
+downloads/
+var/lib/cowrie/
+var/run/cowrie.pid
