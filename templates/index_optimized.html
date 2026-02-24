@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cowrie Honeypot Dashboard - Optimized</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-red {
+            0%, 100% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.3); }
+        }
+        .alert-high { animation: pulse-red 2s infinite; }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .stat-card {
+            transition: all 0.3s ease;
+            transform: translateY(0);
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .smooth-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 min-h-screen text-white">
+    <!-- Header -->
+    <header class="glass-effect p-4 sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-shield-alt text-2xl text-blue-400"></i>
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                    Cowrie Honeypot Dashboard
+                </h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="connection-status" class="flex items-center">
+                    <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-2"></span>
+                    <span class="text-sm">Connected</span>
+                </span>
+                <button onclick="exportCredentials()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg smooth-transition flex items-center space-x-2">
+                    <i class="fas fa-download"></i>
+                    <span>Export CSV</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4">
+        <!-- Stats Overview -->
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="stat-card glass-effect p-6 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-300 text-sm">Total Connections</p>
+                        <p id="total-connections" class="text-3xl font-bold text-blue-400">0</p>
+                    </div>
+                    <i class="fas fa-network-wired text-3xl text-blue-400 opacity-50"></i>
+                </div>
+            </div>
+            <div class="stat-card glass-effect p-6 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-300 text-sm">Failed Logins</p>
+                        <p id="failed-logins" class="text-3xl font-bold text-red-400">0</p>
+                    </div>
+                    <i class="fas fa-times-circle text-3xl text-red-400 opacity-50"></i>
+                </div>
+            </div>
+            <div class="stat-card glass-effect p-6 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-300 text-sm">Successful Logins</p>
+                        <p id="successful-logins" class="text-3xl font-bold text-green-400">0</p>
+                    </div>
+                    <i class="fas fa-check-circle text-3xl text-green-400 opacity-50"></i>
+                </div>
+            </div>
+            <div class="stat-card glass-effect p-6 rounded-xl">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-300 text-sm">Unique IPs</p>
+                        <p id="unique-ips" class="text-3xl font-bold text-purple-400">0</p>
+                    </div>
+                    <i class="fas fa-globe text-3xl text-purple-400 opacity-50"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts and Tables -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Attack Timeline Chart -->
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-blue-400"></i>
+                    Attack Timeline
+                </h2>
+                <canvas id="timeline-chart" height="200"></canvas>
+            </div>
+
+            <!-- Top Passwords -->
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-key mr-2 text-yellow-400"></i>
+                    Top Passwords
+                </h2>
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    <div id="top-passwords"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Attacks Table -->
+        <div class="glass-effect p-6 rounded-xl mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-history mr-2 text-green-400"></i>
+                Recent Attacks
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="text-left p-2">Time</th>
+                            <th class="text-left p-2">IP</th>
+                            <th class="text-left p-2">Country</th>
+                            <th class="text-left p-2">Event</th>
+                            <th class="text-left p-2">Username</th>
+                            <th class="text-left p-2">Password</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-attacks">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Alerts Section -->
+        <div class="glass-effect p-6 rounded-xl mb-6">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2 text-red-400"></i>
+                Security Alerts
+            </h2>
+            <div id="alerts-container" class="space-y-2 max-h-64 overflow-y-auto">
+                <!-- Dynamic alerts -->
+            </div>
+        </div>
+
+        <!-- Top Countries & Organizations -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-flag mr-2 text-purple-400"></i>
+                    Top Countries
+                </h2>
+                <div id="top-countries"></div>
+            </div>
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-building mr-2 text-orange-400"></i>
+                    Top Organizations
+                </h2>
+                <div id="top-organizations"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="glass-effect p-6 rounded-xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">Export Credentials</h3>
+            <div class="space-y-4">
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" id="success-only" class="rounded">
+                    <span>Export successful logins only</span>
+                </label>
+                <div class="flex space-x-4">
+                    <button onclick="confirmExport()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg smooth-transition">
+                        <i class="fas fa-download mr-2"></i>Export
+                    </button>
+                    <button onclick="closeExportModal()" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg smooth-transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let socket;
+        let timelineChart;
+        let stats = {};
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeCharts();
+            loadInitialData();
+        });
+
+        // Socket.IO connection
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                updateConnectionStatus(true);
+            });
+            
+            socket.on('disconnect', function() {
+                updateConnectionStatus(false);
+            });
+            
+            socket.on('stats_update', function(data) {
+                updateStats(data);
+            });
+            
+            socket.on('new_attack', function(data) {
+                handleNewAttack(data);
+            });
+            
+            socket.on('alert', function(alert) {
+                addAlert(alert);
+            });
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connection-status');
+            if (connected) {
+                status.innerHTML = '<span class="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-2"></span><span class="text-sm">Connected</span>';
+            } else {
+                status.innerHTML = '<span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span><span class="text-sm">Disconnected</span>';
+            }
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            const ctx = document.getElementById('timeline-chart').getContext('2d');
+            timelineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Attacks Over Time',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: 'white' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load initial data
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/stats');
+                stats = await response.json();
+                updateStats(stats);
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+            }
+        }
+
+        // Update statistics
+        function updateStats(data) {
+            stats = data;
+            
+            // Update stat cards with animation
+            updateStatCard('total-connections', data.total_connections);
+            updateStatCard('failed-logins', data.failed_logins);
+            updateStatCard('successful-logins', data.successful_logins);
+            updateStatCard('unique-ips', data.unique_ips);
+            
+            // Update top passwords
+            updateTopPasswords(data.top_passwords);
+            
+            // Update recent attacks
+            updateRecentAttacks(data.recent_attacks);
+            
+            // Update top countries
+            updateTopCountries(data.countries);
+            
+            // Update top organizations
+            updateTopOrganizations(data.organizations);
+            
+            // Update timeline chart
+            updateTimelineChart(data.recent_attacks);
+        }
+
+        // Update stat card with animation
+        function updateStatCard(elementId, value) {
+            const element = document.getElementById(elementId);
+            const currentValue = parseInt(element.textContent) || 0;
+            const increment = (value - currentValue) / 20;
+            let current = currentValue;
+            
+            const animation = setInterval(() => {
+                current += increment;
+                if ((increment > 0 && current >= value) || (increment < 0 && current <= value)) {
+                    element.textContent = value.toLocaleString();
+                    clearInterval(animation);
+                } else {
+                    element.textContent = Math.round(current).toLocaleString();
+                }
+            }, 50);
+        }
+
+        // Update top passwords
+        function updateTopPasswords(passwords) {
+            const container = document.getElementById('top-passwords');
+            container.innerHTML = Object.entries(passwords)
+                .slice(0, 10)
+                .map(([password, count], index) => `
+                    <div class="flex justify-between items-center p-2 hover:bg-white hover:bg-opacity-10 rounded smooth-transition">
+                        <span class="flex items-center">
+                            <span class="text-yellow-400 mr-2">#${index + 1}</span>
+                            <span class="font-mono text-sm">${password || '<empty>'}</span>
+                        </span>
+                        <span class="bg-blue-600 px-2 py-1 rounded text-xs">${count}</span>
+                    </div>
+                `).join('');
+        }
+
+        // Update recent attacks
+        function updateRecentAttacks(attacks) {
+            const tbody = document.getElementById('recent-attacks');
+            tbody.innerHTML = attacks.slice(0, 20).map(attack => `
+                <tr class="border-b border-gray-800 hover:bg-white hover:bg-opacity-5 smooth-transition">
+                    <td class="p-2 text-xs">${formatTime(attack.timestamp)}</td>
+                    <td class="p-2 font-mono text-sm">${attack.ip}</td>
+                    <td class="p-2">${attack.country || 'Unknown'}</td>
+                    <td class="p-2">
+                        <span class="px-2 py-1 rounded text-xs ${
+                            attack.event === 'connection' ? 'bg-blue-600' : 
+                            attack.event === 'login.success' ? 'bg-green-600' : 'bg-red-600'
+                        }">
+                            ${attack.event || 'Unknown'}
+                        </span>
+                    </td>
+                    <td class="p-2 font-mono text-sm">${attack.username || '-'}</td>
+                    <td class="p-2 font-mono text-sm">${truncateText(attack.password || '-', 15)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Update top countries
+        function updateTopCountries(countries) {
+            const container = document.getElementById('top-countries');
+            container.innerHTML = Object.entries(countries)
+                .slice(0, 10)
+                .map(([country, count], index) => `
+                    <div class="flex justify-between items-center p-2 hover:bg-white hover:bg-opacity-10 rounded smooth-transition">
+                        <span class="flex items-center">
+                            <span class="text-purple-400 mr-2">#${index + 1}</span>
+                            <span>${country}</span>
+                        </span>
+                        <span class="bg-purple-600 px-2 py-1 rounded text-xs">${count}</span>
+                    </div>
+                `).join('');
+        }
+
+        // Update top organizations
+        function updateTopOrganizations(organizations) {
+            const container = document.getElementById('top-organizations');
+            container.innerHTML = Object.entries(organizations)
+                .slice(0, 10)
+                .map(([org, count], index) => `
+                    <div class="flex justify-between items-center p-2 hover:bg-white hover:bg-opacity-10 rounded smooth-transition">
+                        <span class="flex items-center">
+                            <span class="text-orange-400 mr-2">#${index + 1}</span>
+                            <span class="text-sm">${org || 'Unknown'}</span>
+                        </span>
+                        <span class="bg-orange-600 px-2 py-1 rounded text-xs">${count}</span>
+                    </div>
+                `).join('');
+        }
+
+        // Update timeline chart
+        function updateTimelineChart(attacks) {
+            if (!timelineChart) return;
+            
+            // Group attacks by hour
+            const hourlyData = {};
+            attacks.forEach(attack => {
+                const hour = new Date(attack.timestamp).getHours();
+                hourlyData[hour] = (hourlyData[hour] || 0) + 1;
+            });
+            
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            const data = labels.map((_, i) => hourlyData[i] || 0);
+            
+            timelineChart.data.labels = labels;
+            timelineChart.data.datasets[0].data = data;
+            timelineChart.update('none'); // Update without animation for performance
+        }
+
+        // Handle new attack
+        function handleNewAttack(data) {
+            if (data.type === 'cowrie.session.connect') {
+                // Flash connection indicator
+                const connectionsCard = document.querySelector('#total-connections').closest('.stat-card');
+                connectionsCard.classList.add('alert-high');
+                setTimeout(() => connectionsCard.classList.remove('alert-high'), 2000);
+            }
+            
+            updateStats(data.stats);
+        }
+
+        // Add alert
+        function addAlert(alert) {
+            const container = document.getElementById('alerts-container');
+            const alertElement = document.createElement('div');
+            alertElement.className = `p-3 rounded-lg smooth-transition ${
+                alert.level === 'HIGH' ? 'bg-red-600 bg-opacity-20 border border-red-600' :
+                alert.level === 'MEDIUM' ? 'bg-yellow-600 bg-opacity-20 border border-yellow-600' :
+                'bg-blue-600 bg-opacity-20 border border-blue-600'
+            }`;
+            
+            alertElement.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="text-xs font-semibold ${
+                                alert.level === 'HIGH' ? 'text-red-400' :
+                                alert.level === 'MEDIUM' ? 'text-yellow-400' :
+                                'text-blue-400'
+                            }">${alert.level}</span>
+                            <span class="text-xs text-gray-400">${formatTime(alert.timestamp)}</span>
+                        </div>
+                        <p class="text-sm">${alert.message}</p>
+                        <p class="text-xs text-gray-400 mt-1">IP: ${alert.ip} | ${alert.country}</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            container.insertBefore(alertElement, container.firstChild);
+            
+            // Keep only latest 10 alerts
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Export functions
+        function exportCredentials() {
+            document.getElementById('export-modal').classList.remove('hidden');
+        }
+
+        function closeExportModal() {
+            document.getElementById('export-modal').classList.add('hidden');
+        }
+
+        function confirmExport() {
+            const successOnly = document.getElementById('success-only').checked;
+            const url = `/api/export/credentials?success_only=${successOnly}`;
+            
+            window.open(url, '_blank');
+            closeExportModal();
+        }
+
+        // Utility functions
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        function truncateText(text, maxLength) {
+            return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+        }
+    </script>
+</body>
+</html>
