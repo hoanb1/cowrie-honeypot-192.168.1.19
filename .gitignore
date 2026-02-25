@@ -32,3 +32,6 @@ Thumbs.db
 downloads/
 var/lib/cowrie/
 var/run/cowrie.pid
+
+# Playwright node_modules
+node_modules/
