@@ -180,7 +180,26 @@
             </div>
         </div>
 
-        <!-- Recent Attacks Table -->
+        
+
+        <!-- Top Countries & Organizations -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-flag mr-2 text-purple-400"></i>
+                    Top Countries
+                </h2>
+                <div id="top-countries-chart"></div>
+            </div>
+            <div class="glass-effect p-6 rounded-xl">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-building mr-2 text-orange-400"></i>
+                    Top Organizations
+                </h2>
+                <div id="top-organizations-chart"></div>
+            </div>
+        </div>
+<!-- Recent Attacks Table -->
         <div class="glass-effect p-6 rounded-xl mb-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold flex items-center">
@@ -198,9 +217,9 @@
                     </button>
                 </div>
             </div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto overflow-y-auto" style="max-height: 600px;">
                 <table class="w-full text-sm">
-                    <thead>
+                    <thead class="sticky top-0 bg-gray-800">
                         <tr class="border-b border-gray-700">
                             <th class="text-left p-2">Time</th>
                             <th class="text-left p-2">IP</th>
@@ -233,25 +252,6 @@
                 <!-- Dynamic alerts -->
             </div>
         </div>
-
-        <!-- Top Countries & Organizations -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div class="glass-effect p-6 rounded-xl">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <i class="fas fa-flag mr-2 text-purple-400"></i>
-                    Top Countries
-                </h2>
-                <div id="top-countries-chart"></div>
-            </div>
-            <div class="glass-effect p-6 rounded-xl">
-                <h2 class="text-xl font-semibold mb-4 flex items-center">
-                    <i class="fas fa-building mr-2 text-orange-400"></i>
-                    Top Organizations
-                </h2>
-                <div id="top-organizations-chart"></div>
-            </div>
-        </div>
-
         <!-- Top Passwords & Users & IPs -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
              <div class="glass-effect p-6 rounded-xl">
@@ -365,6 +365,65 @@
                 updateConnectionStatus(false);
             }
         }
+        
+        // Country center coordinates for fallback when precise geo data is missing
+        const countryCoords = {
+            "Vietnam": [14.0583, 108.2772],
+            "United States": [37.0902, -95.7129],
+            "Russia": [61.5240, 105.3188],
+            "India": [20.5937, 78.9629],
+            "China": [35.8617, 104.1954],
+            "Japan": [36.2048, 138.2529],
+            "Germany": [51.1657, 10.4515],
+            "United Kingdom": [55.3781, -3.4360],
+            "France": [46.2276, 2.2137],
+            "Brazil": [-14.2350, -51.9253],
+            "Canada": [56.1304, -106.3468],
+            "Australia": [-25.2744, 133.7751],
+            "South Korea": [35.9078, 127.7669],
+            "Netherlands": [52.1326, 5.2913],
+            "Sweden": [60.1282, 18.6435],
+            "Poland": [51.9194, 19.1451],
+            "Italy": [41.8719, 12.5674],
+            "Spain": [40.4637, -3.7492],
+            "Turkey": [38.9637, 35.2433],
+            "Thailand": [15.8700, 100.9925],
+            "Indonesia": [-0.7893, 113.9213],
+            "Philippines": [12.8797, 121.7740],
+            "Malaysia": [4.2105, 101.9758],
+            "Singapore": [1.3521, 103.8198],
+            "Taiwan": [23.6978, 120.9605],
+            "Hong Kong": [22.3193, 114.1694],
+            "Israel": [31.0461, 34.8516],
+            "United Arab Emirates": [23.4241, 53.8478],
+            "Saudi Arabia": [23.8859, 45.0792],
+            "South Africa": [-30.5595, 22.9375],
+            "Mexico": [23.6345, -102.5528],
+            "Argentina": [-38.4161, -63.6167],
+            "Chile": [-35.6751, -71.5430],
+            "Colombia": [4.5709, -74.2973],
+            "Peru": [-9.1900, -75.0152],
+            "Egypt": [26.0963, 29.9876],
+            "Nigeria": [9.0820, 8.6753],
+            "Kenya": [-1.2921, 36.8219],
+            "Unknown": [0, 0]  // Default for unknown countries
+        };
+        
+        // Function to get coordinates for an attack, using fallback if needed
+        function getAttackCoordinates(attack) {
+            let lat = attack.latitude;
+            let lng = attack.longitude;
+            
+            if (!lat || !lng) {
+                if (attack.country && countryCoords[attack.country]) {
+                    lat = countryCoords[attack.country][0];
+                    lng = countryCoords[attack.country][1];
+                    console.log(`🌍 Using fallback coordinates for ${attack.country}: ${lat}, ${lng}`);
+                }
+            }
+            
+            return { latitude: lat, longitude: lng };
+        }
 
         // Update connection status
         function updateConnectionStatus(connected) {
@@ -433,12 +492,14 @@
                 maxZoom: 19
             }).addTo(window.worldMap);
             
-            // Add initial attack markers from recent attacks
+            // Add initial attack markers from recent attacks (limit to 500 for performance)
             if (stats.recent_attacks) {
                 console.log('Adding initial attack markers:', stats.recent_attacks.length);
-                stats.recent_attacks.forEach(attack => {
-                    if (attack.latitude && attack.longitude) {
-                        addAttackMarker(attack);
+                const attacksToProcess = stats.recent_attacks.slice(0, 500);
+                attacksToProcess.forEach(attack => {
+                    const coords = getAttackCoordinates(attack);
+                    if (coords.latitude && coords.longitude) {
+                        addAttackMarker({ ...attack, latitude: coords.latitude, longitude: coords.longitude });
                     }
                 });
             }
@@ -543,7 +604,11 @@
         async function loadInitialData() {
             try {
                 console.log('📊 Loading initial data...');
-                const response = await fetch('/api/stats');
+                const response = await fetch('http://192.168.1.19:3333/api/stats', {
+                    headers: {
+                        'Authorization': 'Basic ' + btoa('admin:Cowrie@2026!')
+                    }
+                });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -563,14 +628,16 @@
                     updateTimelineChart(stats.recent_attacks);
                 }
                 
-                // Explicitly add map markers
+                // Explicitly add map markers (limit to 500 for performance)
                 if (stats.recent_attacks && window.worldMap) {
                     console.log('🗺️ Adding initial map markers for', stats.recent_attacks.length, 'attacks...');
                     let markerCount = 0;
-                    stats.recent_attacks.forEach((attack, index) => {
-                        console.log(`🗺️ Attack ${index}: lat=${attack.latitude}, lng=${attack.longitude}, ip=${attack.ip}`);
-                        if (attack.latitude && attack.longitude) {
-                            addAttackMarker(attack);
+                    const attacksToProcess = stats.recent_attacks.slice(0, 500);
+                    attacksToProcess.forEach((attack, index) => {
+                        const coords = getAttackCoordinates(attack);
+                        console.log(`🗺️ Attack ${index}: lat=${coords.latitude}, lng=${coords.longitude}, ip=${attack.ip}`);
+                        if (coords.latitude && coords.longitude) {
+                            addAttackMarker({ ...attack, latitude: coords.latitude, longitude: coords.longitude });
                             markerCount++;
                         }
                     });
@@ -652,7 +719,10 @@
             
             // Update top countries with null check
             if (data.top_countries && typeof data.top_countries === 'object') {
+                console.log('🌍 Calling updateTopCountries with data:', data.top_countries);
                 updateTopCountries(data.top_countries);
+            } else {
+                console.log('🌍 No top_countries data available:', data.top_countries);
             }
             
             // Update top organizations with null check
@@ -717,7 +787,7 @@
         // Update recent attacks
         function updateRecentAttacks(attacks) {
             const tbody = document.getElementById('recent-attacks');
-            tbody.innerHTML = attacks.slice(0, 20).map(attack => `
+            tbody.innerHTML = attacks.slice(0, 500).map(attack => `
                 <tr class="border-b border-gray-800 hover:bg-white hover:bg-opacity-5 smooth-transition">
                     <td class="p-2 text-xs">${formatTime(attack.timestamp)}</td>
                     <td class="p-2 font-mono text-sm">${attack.ip}</td>
@@ -736,97 +806,109 @@
             `).join('');
         }
 
-        // Update top countries
+                // Update top countries chart
         function updateTopCountries(countries) {
-            console.log('🌍 updateTopCountries called with:', countries);
-            console.log('🌍 countries type:', typeof countries, Array.isArray(countries) ? 'array' : 'object');
+            console.log('🌍 updateTopCountries called with:', countries?.length || 0, 'countries');
+            
+            // Convert dict to array if needed
+            if (typeof countries === 'object' && !Array.isArray(countries)) {
+                console.log('🌍 Converting dict to array...');
+                countries = Object.entries(countries);
+                console.log('🌍 After conversion:', countries);
+            }
             
             const container = document.getElementById('top-countries-chart');
-            console.log('🌍 Top countries container:', container);
-            
-            if (!countries || typeof countries !== 'object') {
-                console.log('🌍 No countries data or invalid format, showing message');
-                container.innerHTML = '<div class="text-gray-400 text-sm p-2">No countries data available</div>';
+            console.log('🌍 Container element:', container);
+            if (!container) {
+                console.log('❌ Top countries container not found');
                 return;
             }
             
-            console.log('🌍 Countries data valid, creating chart container');
-            
-            // Create chart container
-            container.innerHTML = `
-                <div class="relative" style="height: 300px;">
-                    <canvas id="countries-chart"></canvas>
-                </div>
-            `;
-            
             // Prepare chart data
-            console.log('🌍 Attempting direct array processing...');
-            let chartData;
+            console.log('🌍 Preparing chart data...');
             try {
-                chartData = countries.sort((a, b) => b[1] - a[1]).slice(0, 10);
+                if (!Array.isArray(countries) || countries.length === 0) {
+                    console.log('🌍 No countries data, showing message');
+                    container.innerHTML = '<div class="text-gray-400 text-sm p-2">No countries data available</div>';
+                    return;
+                }
+                
+                const chartData = countries.sort((a, b) => b[1] - a[1]).slice(0, 10);
                 console.log('🌍 chartData after array processing:', chartData);
                 
                 const labels = chartData.map(([country]) => country);
                 const data = chartData.map(([, count]) => count);
                 
                 console.log('🌍 Chart data prepared:', { labels, data, chartData });
-                console.log('🌍 Chart.js available?', typeof Chart !== 'undefined');
                 
-                // Create chart
+                // Check if chart already exists
+                const canvas = document.getElementById('countries-chart');
+                if (!canvas) {
+                    console.log('🌍 Creating chart container for first time');
+                    // Create chart container
+                    container.innerHTML = '<div class="relative" style="height: 300px;"><canvas id="countries-chart"></canvas></div>';
+                }
+                
                 const ctx = document.getElementById('countries-chart').getContext('2d');
                 console.log('🌍 Canvas context:', ctx);
                 
-                // Destroy existing chart if it exists
                 if (window.countriesChart) {
-                    console.log('🌍 Destroying existing chart');
-                    window.countriesChart.destroy();
-                }
-                
-                console.log('🌍 Creating new Chart.js chart...');
-                window.countriesChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Attack Count',
-                            data: data,
-                            backgroundColor: 'rgba(168, 85, 247, 0.6)',
-                            borderColor: 'rgba(168, 85, 247, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
+                    console.log('🌍 Updating existing chart data');
+                    // Update existing chart data instead of recreating
+                    window.countriesChart.data.labels = labels;
+                    window.countriesChart.data.datasets[0].data = data;
+                    window.countriesChart.update('none'); // Update without animation for performance
+                } else {
+                    console.log('🌍 Creating new Chart.js chart');
+                    // Create new chart
+                    window.countriesChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Attack Count',
+                                data: data,
+                                backgroundColor: 'rgba(168, 85, 247, 0.6)',
+                                borderColor: 'rgba(168, 85, 247, 1)',
+                                borderWidth: 1
+                            }]
                         },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(255, 255, 255, 0.1)'
-                                },
-                                ticks: {
-                                    color: 'rgba(255, 255, 255, 0.7)'
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: {
+                                duration: 0 // Disable animation for better performance
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
                                 }
                             },
-                            x: {
-                                grid: {
-                                    display: false
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    },
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    }
                                 },
-                                ticks: {
-                                    color: 'rgba(255, 255, 255, 0.7)',
-                                    maxRotation: 45,
-                                    minRotation: 45
+                                x: {
+                                    grid: {
+                                        display: false
+                                    },
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    }
                                 }
                             }
                         }
-                    }
-                });
-                console.log('🌍 Chart created successfully');
+                    });
+                }
+                console.log('🌍 Chart updated successfully');
             } catch (error) {
                 console.error('🌍 Error in chart creation:', error.message);
                 console.error('🌍 Error stack:', error.stack);
@@ -838,92 +920,105 @@
             console.log('🏢 updateTopOrganizations called with:', organizations);
             console.log('🏢 organizations type:', typeof organizations, Array.isArray(organizations) ? 'array' : 'object');
             
+            // Convert dict to array if needed
+            if (typeof organizations === 'object' && !Array.isArray(organizations)) {
+                console.log('🏢 Converting dict to array...');
+                organizations = Object.entries(organizations);
+                console.log('🏢 After conversion:', organizations);
+            }
+            
             const container = document.getElementById('top-organizations-chart');
             console.log('🏢 Top organizations container:', container);
-            
-            if (!organizations || typeof organizations !== 'object') {
-                console.log('🏢 No organizations data or invalid format, showing message');
-                container.innerHTML = '<div class="text-gray-400 text-sm p-2">No organizations data available</div>';
+            if (!container) {
+                console.log('❌ Top organizations container not found');
                 return;
             }
             
-            console.log('🏢 Organizations data valid, creating chart container');
-            
-            // Create chart container
-            container.innerHTML = `
-                <div class="relative" style="height: 300px;">
-                    <canvas id="organizations-chart"></canvas>
-                </div>
-            `;
-            
             // Prepare chart data
             console.log('🏢 Attempting direct array processing...');
-            let chartData;
             try {
-                chartData = organizations.sort((a, b) => b[1] - a[1]).slice(0, 10);
+                if (!Array.isArray(organizations) || organizations.length === 0) {
+                    console.log('🏢 No organizations data, showing message');
+                    container.innerHTML = '<div class="text-gray-400 text-sm p-2">No organizations data available</div>';
+                    return;
+                }
+                
+                const chartData = organizations.sort((a, b) => b[1] - a[1]).slice(0, 10);
                 console.log('🏢 chartData after array processing:', chartData);
                 
-                const labels = chartData.map(([org]) => org || 'Unknown');
+                const labels = chartData.map(([org]) => org);
                 const data = chartData.map(([, count]) => count);
                 
                 console.log('🏢 Chart data prepared:', { labels, data, chartData });
-                console.log('🏢 Chart.js available?', typeof Chart !== 'undefined');
                 
-                // Create chart
+                // Check if chart already exists
+                const canvas = document.getElementById('organizations-chart');
+                if (!canvas) {
+                    console.log('🏢 Creating chart container for first time');
+                    // Create chart container
+                    container.innerHTML = '<div class="relative" style="height: 300px;"><canvas id="organizations-chart"></canvas></div>';
+                }
+                
                 const ctx = document.getElementById('organizations-chart').getContext('2d');
                 console.log('🏢 Canvas context:', ctx);
                 
-                // Destroy existing chart if it exists
                 if (window.organizationsChart) {
-                    console.log('🏢 Destroying existing chart');
-                    window.organizationsChart.destroy();
-                }
-                
-                console.log('🏢 Creating new Chart.js chart...');
-                window.organizationsChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Attack Count',
-                            data: data,
-                            backgroundColor: 'rgba(249, 115, 22, 0.6)',
-                            borderColor: 'rgba(249, 115, 22, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
+                    console.log('🏢 Updating existing chart data');
+                    // Update existing chart data instead of recreating
+                    window.organizationsChart.data.labels = labels;
+                    window.organizationsChart.data.datasets[0].data = data;
+                    window.organizationsChart.update('none'); // Update without animation for performance
+                } else {
+                    console.log('🏢 Creating new Chart.js chart');
+                    // Create new chart
+                    window.organizationsChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Attack Count',
+                                data: data,
+                                backgroundColor: 'rgba(251, 146, 60, 0.6)',
+                                borderColor: 'rgba(251, 146, 60, 1)',
+                                borderWidth: 1
+                            }]
                         },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: {
-                                    color: 'rgba(255, 255, 255, 0.1)'
-                                },
-                                ticks: {
-                                    color: 'rgba(255, 255, 255, 0.7)'
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: {
+                                duration: 0 // Disable animation for better performance
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
                                 }
                             },
-                            x: {
-                                grid: {
-                                    display: false
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    },
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    }
                                 },
-                                ticks: {
-                                    color: 'rgba(255, 255, 255, 0.7)',
-                                    maxRotation: 45,
-                                    minRotation: 45
+                                x: {
+                                    grid: {
+                                        display: false
+                                    },
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)',
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    }
                                 }
                             }
                         }
-                    }
-                });
-                console.log('🏢 Chart created successfully');
+                    });
+                }
+                console.log('🏢 Chart updated successfully');
             } catch (error) {
                 console.error('🏢 Error in chart creation:', error.message);
                 console.error('🏢 Error stack:', error.stack);
@@ -979,15 +1074,10 @@
                 return;
             }
             
-            // Rate limiting - don't update too frequently
-            const now = Date.now();
-            if (now - lastUpdateTime < 1000) {
-                console.log('Rate limited update');
-                return; // Max 1 update per second
-            }
-            lastUpdateTime = now;
+            // Limit attacks to 500 for performance
+            const attacksToProcess = attacks ? attacks.slice(0, 500) : [];
             
-            if (!attacks || attacks.length === 0) {
+            if (!attacksToProcess || attacksToProcess.length === 0) {
                 console.log('No attacks data, clearing chart');
                 // Clear chart if no data
                 window.timelineChart.data.labels = [];
@@ -1000,7 +1090,7 @@
             const minuteData = {};
             const minutesWithData = new Set();
             
-            attacks.forEach(attack => {
+            attacksToProcess.forEach(attack => {
                 const date = new Date(attack.timestamp);
                 const hour = date.getHours().toString().padStart(2, '0');
                 const minute = date.getMinutes().toString().padStart(2, '0');
@@ -1016,7 +1106,7 @@
                 const hourlyData = {};
                 const hoursWithData = new Set();
                 
-                attacks.forEach(attack => {
+                attacksToProcess.forEach(attack => {
                     const hour = new Date(attack.timestamp).getHours();
                     hourlyData[hour] = (hourlyData[hour] || 0) + 1;
                     hoursWithData.add(hour);
@@ -1054,10 +1144,10 @@
             if (data.latitude && data.longitude) {
                 addAttackMarker(data);
             } else if (data.ip) {
-                // Try to get coordinates from existing data
-                const existingAttack = stats.recent_attacks?.find(a => a.ip === data.ip);
-                if (existingAttack && existingAttack.latitude && existingAttack.longitude) {
-                    addAttackMarker({...data, latitude: existingAttack.latitude, longitude: existingAttack.longitude});
+                // Try to get coordinates using fallback
+                const coords = getAttackCoordinates(data);
+                if (coords.latitude && coords.longitude) {
+                    addAttackMarker({ ...data, latitude: coords.latitude, longitude: coords.longitude });
                 }
             }
             

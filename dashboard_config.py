@@ -1,0 +1,31 @@
+# Dashboard Configuration
+DASHBOARD_HOST = '0.0.0.0'
+DASHBOARD_PORT = 3333
+COWRIE_LOG_PATH = '/home/cowrie/cowrie/var/log/cowrie/cowrie.json'
+GEOIP_DB_PATH = '/home/cowrie/cowrie-dashboard/data/GeoLite2-City.mmdb'
+MAX_RECENT_ATTACKS = 500
+MAX_TOP_RESULTS = 200
+UPDATE_INTERVAL = 5
+AUTH_USERNAME = 'admin'
+AUTH_PASSWORD = 'Cowrie@2026!'
+SECRET_KEY = "your-secret-key-here"
+
+# Additional configuration
+CORS_ALLOWED_ORIGINS = ['*']
+MAX_CONNECTIONS = 1000
+LOG_LEVEL = 'INFO'
+API_RATE_LIMIT = "30/minute"
+
+# Missing attributes that the code expects
+MAX_UNIQUE_IPS = 10000
+MAX_UNIQUE_PASSWORDS = 5000
+MAX_UNIQUE_USERS = 1000
+MAX_TOP_ENTRIES = 200
+MAX_TIMELINE_ENTRIES = 1000
+MAX_MAP_MARKERS = 500
+MAX_ALERTS = 50
+ENRICHMENT_QUEUE_SIZE = 1000
+LOG_POLL_INTERVAL = 1
+STATS_CACHE_TTL = 5
+DASHBOARD_USERNAME = 'admin'
+DASHBOARD_PASSWORD = 'Cowrie@2026!'

