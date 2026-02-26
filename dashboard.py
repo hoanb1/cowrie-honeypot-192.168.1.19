@@ -54,12 +54,36 @@ class DatabaseManager:
             
             CREATE TABLE IF NOT EXISTS credentials (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                password TEXT NOT NULL,
+                ip TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                success BOOLEAN DEFAULT FALSE,
+                session_id TEXT,
+                country TEXT,
+                organization TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS successful_logins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ip_address TEXT NOT NULL,
+                country TEXT,
                 username TEXT,
                 password TEXT,
-                ip TEXT,
-                timestamp TIMESTAMP,
-                success BOOLEAN,
-                session_id TEXT
+                session_id TEXT,
+                UNIQUE(timestamp, ip_address)
+            );
+            
+            CREATE TABLE IF NOT EXISTS login_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                login_id INTEGER,
+                action_type TEXT NOT NULL,
+                command TEXT,
+                file_path TEXT,
+                description TEXT,
+                action_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (login_id) REFERENCES successful_logins(id)
             );
             
             CREATE TABLE IF NOT EXISTS attack_stats (
@@ -81,6 +105,10 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_credentials_username ON credentials(username);
             CREATE INDEX IF NOT EXISTS idx_credentials_password ON credentials(password);
             CREATE INDEX IF NOT EXISTS idx_credentials_timestamp ON credentials(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_successful_logins_timestamp ON successful_logins(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_successful_logins_ip ON successful_logins(ip_address);
+            CREATE INDEX IF NOT EXISTS idx_login_actions_login_id ON login_actions(login_id);
+            CREATE INDEX IF NOT EXISTS idx_login_actions_timestamp ON login_actions(action_timestamp);
             CREATE INDEX IF NOT EXISTS idx_attack_stats_ip ON attack_stats(ip);
             CREATE INDEX IF NOT EXISTS idx_attack_stats_timestamp ON attack_stats(timestamp);
             CREATE INDEX IF NOT EXISTS idx_attack_stats_event_type ON attack_stats(event_type);
@@ -127,6 +155,41 @@ class DatabaseManager:
             (username, password, ip, timestamp, success, session_id)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (username, password, ip, timestamp, success, session_id))
+        conn.commit()
+        conn.close()
+    
+    def store_successful_login(self, ip_address, country, username, password, session_id, timestamp):
+        """Store successful login and return login ID"""
+        conn = self.get_connection()
+        cursor = conn.execute("""
+            INSERT OR IGNORE INTO successful_logins 
+            (timestamp, ip_address, country, username, password, session_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (timestamp, ip_address, country, username, password, session_id))
+        
+        # Get the login ID
+        login_id = cursor.lastrowid if cursor.lastrowid else None
+        
+        # If login already existed, get its ID
+        if not login_id:
+            cursor = conn.execute("""
+                SELECT id FROM successful_logins 
+                WHERE timestamp = ? AND ip_address = ?
+            """, (timestamp, ip_address))
+            login_id = cursor.fetchone()[0]
+        
+        conn.commit()
+        conn.close()
+        return login_id
+    
+    def store_login_action(self, login_id, action_type, command=None, file_path=None, description=None, action_timestamp=None):
+        """Store action taken after successful login"""
+        conn = self.get_connection()
+        conn.execute("""
+            INSERT INTO login_actions 
+            (login_id, action_type, command, file_path, description, action_timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (login_id, action_type, command, file_path, description, action_timestamp or datetime.now()))
         conn.commit()
         conn.close()
     
@@ -505,6 +568,72 @@ class CowrieMonitor:
 #     } for row in cursor.fetchall()]
 #     conn.close()
 #     return jsonify(alerts)
+
+@app.route('/api/successful-logins')
+def get_successful_logins():
+    global monitor
+    if 'monitor' not in globals():
+        monitor = CowrieMonitor(LOG_PATH)
+    
+    # Get successful login details with actions
+    conn = monitor.db_manager.get_connection()
+    cursor = conn.execute("""
+        SELECT 
+            sl.timestamp,
+            sl.ip_address,
+            sl.country,
+            sl.username,
+            sl.password,
+            la.action_type,
+            la.command,
+            la.file_path,
+            la.description,
+            la.action_timestamp
+        FROM successful_logins sl
+        LEFT JOIN login_actions la ON sl.id = la.login_id
+        ORDER BY sl.timestamp DESC, la.action_timestamp ASC
+        LIMIT 100
+    """)
+    
+    # Group results by login
+    logins_dict = {}
+    for row in cursor.fetchall():
+        login_key = (row[0], row[1])  # timestamp + ip as unique key
+        
+        if login_key not in logins_dict:
+            logins_dict[login_key] = {
+                'timestamp': row[0],
+                'ip': row[1],
+                'country': row[2],
+                'username': row[3],
+                'password': row[4],
+                'actions': []
+            }
+        
+        # Add action if exists
+        if row[5]:  # action_type exists
+            action = {
+                'type': row[5],
+                'timestamp': row[9]
+            }
+            
+            if row[6]:  # command exists
+                action['command'] = row[6]
+            elif row[7]:  # file_path exists
+                action['path'] = row[7]
+            elif row[8]:  # description exists
+                action['description'] = row[8]
+            else:
+                action['description'] = 'Unknown action'
+            
+            logins_dict[login_key]['actions'].append(action)
+    
+    conn.close()
+    
+    # Convert to list and sort by timestamp
+    successful_logins = sorted(logins_dict.values(), key=lambda x: x['timestamp'], reverse=True)
+    
+    return jsonify(successful_logins)
 
 # WebSocket events
 # @socketio.on('connect')
